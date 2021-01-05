@@ -1,4 +1,5 @@
 ﻿#region Using directives
+
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using Blazorise.Utils;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+
 #endregion
 
 namespace Blazorise
@@ -26,7 +28,7 @@ namespace Blazorise
 
             if ( ParentValidation != null )
             {
-                if ( parameters.TryGetValue<Expression<Func<TValue>>>( nameof( DateExpression ), out var expression ) )
+                if ( parameters.TryGetValue<Expression<Func<TValue>>>( nameof(DateExpression), out var expression ) )
                     ParentValidation.InitializeInputExpression( expression );
 
                 InitializeValidation();
@@ -37,14 +39,21 @@ namespace Blazorise
         {
             builder.Append( ClassProvider.DateEdit() );
             builder.Append( ClassProvider.DateEditSize( Size ), Size != Size.None );
-            builder.Append( ClassProvider.DateEditValidation( ParentValidation?.Status ?? ValidationStatus.None ), ParentValidation?.Status != ValidationStatus.None );
+            builder.Append( ClassProvider.DateEditValidation( ParentValidation?.Status ?? ValidationStatus.None ),
+                ParentValidation?.Status != ValidationStatus.None );
 
             base.BuildClasses( builder );
         }
 
         protected override Task OnChangeHandler( ChangeEventArgs e )
         {
-            return CurrentValueHandler( e?.Value?.ToString() );
+            if ( _HasFocus )
+            {
+                _ValueChangedCache = e?.Value?.ToString() ?? "";
+                return Task.CompletedTask;
+            }
+
+            return CurrentValueHandler( e?.Value?.ToString() ?? "" );
         }
 
         protected async Task OnClickHandler( MouseEventArgs e )
@@ -87,11 +96,44 @@ namespace Blazorise
             }
         }
 
+        private async void _OnFocusIn( FocusEventArgs e )
+        {
+            _ValueChangedCache = null;
+            _HasFocus = true;
+            await FocusIn.InvokeAsync( e );
+        }
+
+        private async void _OnFocusOut( FocusEventArgs e )
+        {
+            _HasFocus = false;
+            // fire changed event
+            if ( _ValueChangedCache != null )
+            {
+                await CurrentValueHandler(_ValueChangedCache );
+                _ValueChangedCache = null;
+            }
+            await FocusOut.InvokeAsync( e );
+        }
+
         #endregion
 
         #region Properties
 
         protected override TValue InternalValue { get => Date; set => Date = value; }
+
+        /// <summary>
+        /// Stores focus status of the input element
+        /// </summary>
+        /// ValueChanged events are suppressed during focus, since propagating the changed value back
+        /// to the input element hinders a smooth user experience.
+        private bool _HasFocus { get; set; } = false;
+
+        /// <summary>
+        /// Cache last changed value during focus
+        /// </summary>
+#nullable enable
+        private string? _ValueChangedCache { get; set; } = null;
+#nullable disable
 
         /// <summary>
         /// Gets or sets the input date value.
@@ -102,22 +144,26 @@ namespace Blazorise
         /// <summary>
         /// Occurs when the date has changed.
         /// </summary>
-        [Parameter] public EventCallback<TValue> DateChanged { get; set; }
+        [Parameter]
+        public EventCallback<TValue> DateChanged { get; set; }
 
         /// <summary>
         /// Gets or sets an expression that identifies the date value.
         /// </summary>
-        [Parameter] public Expression<Func<TValue>> DateExpression { get; set; }
+        [Parameter]
+        public Expression<Func<TValue>> DateExpression { get; set; }
 
         /// <summary>
         /// The earliest date to accept.
         /// </summary>
-        [Parameter] public DateTime? Min { get; set; }
+        [Parameter]
+        public DateTime? Min { get; set; }
 
         /// <summary>
         /// The latest date to accept.
         /// </summary>
-        [Parameter] public DateTime? Max { get; set; }
+        [Parameter]
+        public DateTime? Max { get; set; }
 
         #endregion
     }
