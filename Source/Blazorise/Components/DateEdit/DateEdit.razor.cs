@@ -1,10 +1,15 @@
 ﻿#region Using directives
+
 using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Blazorise.Utilities;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+
 #endregion
 
 namespace Blazorise
@@ -51,7 +56,12 @@ namespace Blazorise
 
         protected override Task OnChangeHandler( ChangeEventArgs e )
         {
-            return CurrentValueHandler( e?.Value?.ToString() );
+            if ( _HasFocus )
+            {
+                _ValueChangedCache = e?.Value?.ToString() ?? "";
+                return Task.CompletedTask;
+            }
+            return CurrentValueHandler( e?.Value?.ToString() ?? "" );
         }
 
         protected async Task OnClickHandler( MouseEventArgs e )
@@ -94,14 +104,55 @@ namespace Blazorise
             }
         }
 
+        private async void _OnFocusIn( FocusEventArgs e )
+        {
+            _onFocusIn_impl();
+            await FocusIn.InvokeAsync( e );
+        }
+
+        private void _onFocusIn_impl()
+        {
+            _ValueChangedCache = null;
+            _HasFocus = true;
+        }
+
+        private async void _OnFocusOut( FocusEventArgs e )
+        {
+            _HasFocus = false;
+            // fire changed event
+            if ( _ValueChangedCache != null )
+            {
+                await CurrentValueHandler(_ValueChangedCache );
+                _ValueChangedCache = null;
+            }
+            await FocusOut.InvokeAsync( e );
+        }        
+        
+        private async void _OnFocus( FocusEventArgs e )
+        {
+            _onFocusIn_impl();
+            await OnFocus.InvokeAsync( e );
+        }
+
         #endregion
 
         #region Properties
 
-        /// <inheritdoc/>
-        protected override bool ShouldAutoGenerateId => true;
-
         protected override TValue InternalValue { get => Date; set => Date = value; }
+
+        /// <summary>
+        /// Stores focus status of the input element
+        /// </summary>
+        /// ValueChanged events are suppressed during focus, since propagating the changed value back
+        /// to the input element hinders a smooth user experience.
+        private bool _HasFocus { get; set; } = false;
+
+        /// <summary>
+        /// Cache last changed value during focus
+        /// </summary>
+#nullable enable
+        private string? _ValueChangedCache { get; set; } = null;
+#nullable disable
 
         /// <summary>
         /// Gets or sets the input date value.
